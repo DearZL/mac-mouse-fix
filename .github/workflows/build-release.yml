@@ -77,6 +77,25 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="" \
             build
 
+      - name: Prepare ad-hoc distribution signature
+        run: |
+          HELPER_PATH="$APP_PATH/Contents/Library/LoginItems/Mac Mouse Fix Helper.app"
+
+          # Xcode preserves keychain-access-groups from the development entitlements. macOS kills an
+          # ad-hoc signed binary carrying that restricted entitlement before launch, so strip it from
+          # both executable bundles and then seal the outer app again.
+          codesign --force --sign - --options runtime --timestamp=none "$HELPER_PATH"
+          codesign --force --sign - --options runtime --timestamp=none "$APP_PATH"
+
+          if codesign -d --entitlements :- "$APP_PATH" 2>&1 | grep -q keychain-access-groups; then
+            echo "Main app still contains restricted keychain entitlements" >&2
+            exit 1
+          fi
+          if codesign -d --entitlements :- "$HELPER_PATH" 2>&1 | grep -q keychain-access-groups; then
+            echo "Helper still contains restricted keychain entitlements" >&2
+            exit 1
+          fi
+
       - name: Verify and package app
         run: |
           test -d "$APP_PATH"
@@ -86,6 +105,12 @@ jobs:
           mkdir -p "$OUTPUT_DIR"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
           shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+          printf '%s\n' \
+            'This community build is ad-hoc signed and cannot be notarized without an Apple Developer ID.' \
+            'After extracting MacMouseFixApp.zip, run:' \
+            '  xattr -dr com.apple.quarantine "Mac Mouse Fix.app"' \
+            'Then open the app normally.' \
+            > "$OUTPUT_DIR/INSTALL.txt"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
@@ -94,6 +119,7 @@ jobs:
           path: |
             ${{ env.ZIP_PATH }}
             ${{ env.ZIP_PATH }}.sha256
+            ${{ env.OUTPUT_DIR }}/INSTALL.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -111,12 +137,12 @@ jobs:
 
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
-              "$ZIP_PATH" "$ZIP_PATH.sha256" \
+              "$ZIP_PATH" "$ZIP_PATH.sha256" "$OUTPUT_DIR/INSTALL.txt" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
             gh release create "$RELEASE_TAG" \
-              "$ZIP_PATH" "$ZIP_PATH.sha256" \
+              "$ZIP_PATH" "$ZIP_PATH.sha256" "$OUTPUT_DIR/INSTALL.txt" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Mac Mouse Fix $RELEASE_TAG" \
