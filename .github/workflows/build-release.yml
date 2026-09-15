@@ -88,7 +88,7 @@ jobs:
           shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: MacMouseFix-${{ github.sha }}
           path: |
