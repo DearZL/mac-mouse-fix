@@ -83,9 +83,10 @@ jobs:
 
           # Xcode preserves keychain-access-groups from the development entitlements. macOS kills an
           # ad-hoc signed binary carrying that restricted entitlement before launch, so strip it from
-          # both executable bundles and then seal the outer app again.
-          codesign --force --sign - --options runtime --timestamp=none "$HELPER_PATH"
-          codesign --force --sign - --options runtime --timestamp=none "$APP_PATH"
+          # both executable bundles and then seal the outer app again. Do not enable hardened runtime:
+          # without a Developer Team it rejects the embedded Sparkle framework at dyld launch time.
+          codesign --force --sign - --timestamp=none "$HELPER_PATH"
+          codesign --force --sign - --timestamp=none "$APP_PATH"
 
           if codesign -d --entitlements :- "$APP_PATH" 2>&1 | grep -q keychain-access-groups; then
             echo "Main app still contains restricted keychain entitlements" >&2
