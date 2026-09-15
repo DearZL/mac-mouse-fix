@@ -97,6 +97,23 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke test app launch
+        run: |
+          LOG_PATH="$RUNNER_TEMP/mac-mouse-fix-smoke.log"
+          "$APP_PATH/Contents/MacOS/Mac Mouse Fix" > "$LOG_PATH" 2>&1 &
+          APP_PID=$!
+          sleep 5
+
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            wait "$APP_PID" || STATUS=$?
+            cat "$LOG_PATH"
+            echo "Mac Mouse Fix exited during launch smoke test with status ${STATUS:-0}" >&2
+            exit 1
+          fi
+
+          kill "$APP_PID"
+          wait "$APP_PID" 2>/dev/null || true
+
       - name: Verify and package app
         run: |
           test -d "$APP_PATH"
