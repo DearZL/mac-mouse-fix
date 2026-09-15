@@ -206,10 +206,15 @@ static NSMutableDictionary *_swipeInfo;
     CGEventRef e30 = NULL;
     if (@available(macOS 27.0, *)) {
         
-        /// Un-flip the delta
-        ///     The `d` input args are already pre-flipped by `ModifiedDrag.m` if `invertedFromDevice == true`. But the macOS 27 path applies the flipping by itself somehow.
+        /// Un-flip progress and velocity
+        ///     The input values are already pre-flipped by `ModifiedDrag.m` if `invertedFromDevice == true`. But the macOS 27 path applies the flipping by itself somehow.
+        ///     Both values must use the same coordinate system; only restoring progress causes a brief rebound when a Space transition ends.
         double __dockSwipeOriginOffset = _dockSwipeOriginOffset;
-        if (invertedFromDevice) __dockSwipeOriginOffset *= -1; /// Could also apply the unflipping to the `d` argument above.
+        double __exitSpeed = exitSpeed;
+        if (invertedFromDevice) {
+            __dockSwipeOriginOffset *= -1; /// Could also apply the unflipping to the `d` argument above.
+            __exitSpeed *= -1;
+        }
         
         /// Create HIDEvent
         ///     Note: [Sep 2026] We set the timestamp to `mach_absolute_time()`. With timestamp 0 the IOHIDEvent reports ~uptime of latency, and the gestures felt very laggy on macOS 27 (26A5425a).
@@ -227,8 +232,8 @@ static NSMutableDictionary *_swipeInfo;
             
             HIDEvent *childEvent = [[HIDEvent alloc] initWithType: kIOHIDEventTypeVelocity timestamp: mach_absolute_time() senderID: 0];
             
-            [childEvent setDoubleValue: exitSpeed forField: kIOHIDEventFieldVelocityX];
-            [childEvent setDoubleValue: exitSpeed forField: kIOHIDEventFieldVelocityY];
+            [childEvent setDoubleValue: __exitSpeed forField: kIOHIDEventFieldVelocityX];
+            [childEvent setDoubleValue: __exitSpeed forField: kIOHIDEventFieldVelocityY];
             [childEvent setDoubleValue: 0.0       forField: kIOHIDEventFieldVelocityZ];
             
             [hidEvent appendEvent: childEvent];
@@ -396,4 +401,3 @@ static NSMutableDictionary *_swipeInfo;
 
 
 @end
-
